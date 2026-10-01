@@ -67,6 +67,7 @@ class Blackboard:
         self._ids = {"n": 0, "g": 0, "q": 0}
         self.auto_resolve = True               # 모순을 만나면 가장 약한 가정을 스스로 내린다
         self.requests: list[dict] = []         # LLM 이 실행을 청한 도구 {name, args, why}
+        self.require_external = False          # 도구가 있으면 True -- 답은 세계를 한 번은 만져야 한다
 
     # ------------------------------------------------------------- utilities
     def _next_id(self, p: str) -> str:
@@ -296,7 +297,10 @@ class Blackboard:
                 continue
             if all(self.tms.is_in(r) for r in g.requires):
                 rests = {a for r in g.requires for a in self.tms.assumptions_of(r)}
-                g.status = "conditional" if rests else "achieved"
+                untouched = self.require_external and not all(
+                    self.tms.touches(r, lambda n: n.meta.get("source", "llm") not in ("llm", "guess"))
+                    for r in g.requires)
+                g.status = "conditional" if rests or untouched else "achieved"
             else:
                 g.status = "open"
 
@@ -306,7 +310,7 @@ class Blackboard:
                 "questions": self.questions, "actions": [asdict(a) for a in self.actions],
                 "recheck": self.recheck, "events": [asdict(e) for e in self.events[-200:]],
                 "seq": self.seq, "ids": self._ids, "auto_resolve": self.auto_resolve,
-                "requests": self.requests}
+                "requests": self.requests, "require_external": self.require_external}
 
     @classmethod
     def from_dict(cls, d: dict) -> "Blackboard":
@@ -320,4 +324,5 @@ class Blackboard:
         b.seq, b._ids = d.get("seq", 0), d.get("ids", b._ids)
         b.auto_resolve = d.get("auto_resolve", True)
         b.requests = d.get("requests", [])
+        b.require_external = d.get("require_external", False)
         return b

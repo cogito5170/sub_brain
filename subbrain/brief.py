@@ -65,8 +65,8 @@ def render(brain, d: dict, budget: int = 1600) -> str:
             cause = det.get("cause") or []
             if cause:
                 lines.append("  broken: " + "; ".join(_n(brain, a) for a in cause))
-        elif imp["kind"] == "WEAK_SUPPORT":
-            pass
+        elif imp["kind"] == "UNVERIFIED":
+            lines.append("  rests only on your own notes: " + "; ".join(_n(brain, a) for a in det.get("self_reported", [])))
         mem = brain.memory.recall(" ".join(t.nodes[x].text for x in imp["nodes"] if x in t.nodes)
                                   or imp["kind"], ["failure", "procedural", "episodic"], k=2)
         for m in mem:

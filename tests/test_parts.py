@@ -54,7 +54,7 @@ class LoopTest(unittest.TestCase):
             prompts.append(user)
             return '```subbrain\n{"ops":[{"op":"fact","text":"A"}]}\n```'
 
-        tools = {"lookup_A": lambda brain, op: [{"op": "observe", "node": "A", "value": True}]}
+        tools = {"lookup_A": lambda brain, op: [{"op": "observe", "node": "A", "value": True, "source": "tool"}]}
         res = run(b, llm, tools)
         self.assertEqual(res["final"], "DONE")
         self.assertEqual(prompts, [])                 # 도구로 풀리니 LLM 을 안 불렀다

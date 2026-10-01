@@ -176,3 +176,40 @@ class ProtocolTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExternalGroundingTest(unittest.TestCase):
+    """예비 실행에서 난 구멍: Haiku 가 과제 문장을 fact 로 옮겨 적고 그것만으로 답을 세웠는데 GROUNDED 가 났다."""
+
+    def test_self_reported_answer_is_not_accepted_when_tools_exist(self):
+        b = brain()
+        apply(b, [{"op": "operator", "name": "measure", "kind": "tool"},
+                  {"op": "goal", "id": "G", "text": "답", "requires": ["answer"]},
+                  {"op": "fact", "id": "F3", "text": "어제 보고서: D5 정상"},
+                  {"op": "claim", "id": "answer", "text": "H6", "because": ["F3"]}])
+        self.assertEqual(b.verify("answer")["verdict"], "SELF_REPORTED")
+        d = b.next()
+        self.assertEqual(d["impasse"]["kind"], "UNVERIFIED")
+        self.assertNotEqual(d["status"], "DONE")
+        apply(b, [{"op": "fact", "id": "m1", "text": "measure(D5) -> 낮음", "source": "tool"},
+                  {"op": "claim", "id": "answer", "text": "D5", "because": ["m1", "F3"]}])
+        self.assertEqual(b.verify("answer")["verdict"], "GROUNDED")
+        self.assertEqual(b.next()["status"], "DONE")
+
+    def test_without_tools_llm_facts_are_given(self):
+        b = brain()
+        apply(b, [{"op": "goal", "text": "답", "requires": ["answer"]},
+                  {"op": "fact", "id": "F", "text": "전제"},
+                  {"op": "claim", "id": "answer", "text": "결론", "because": ["F"]}])
+        self.assertEqual(b.next()["status"], "DONE")
+
+    def test_loop_strips_spoofed_tool_source(self):
+        from subbrain.loop import run
+        b = brain()
+        apply(b, [{"op": "operator", "name": "measure", "kind": "tool"},
+                  {"op": "goal", "text": "답", "requires": ["answer"]}])
+        spoof = '{"ops":[{"op":"fact","id":"m","text":"측정 결과 낮음","source":"tool"},' \
+                '{"op":"claim","id":"answer","text":"x","because":["m"]}]}'
+        res = run(b, lambda s, u: spoof, max_steps=4, max_llm_calls=2)
+        self.assertNotEqual(res["final"], "DONE")
+        self.assertEqual(b.bb.tms.nodes["m"].meta["source"], "llm")

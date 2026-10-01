@@ -167,6 +167,19 @@ class TMS:
     def premises_of(self, id: str) -> list[str]:
         return [n.id for n in self._walk(id, set()) if n.kind == PREMISE and n.support == PREMISE]
 
+    def touches(self, id: str, pred, seen: set[str] | None = None) -> bool:
+        """IN 인 정당화 어느 하나라도 따라가서 pred 를 만족하는 premise 에 닿는가."""
+        seen = seen if seen is not None else set()
+        if id in seen or not self.is_in(id):
+            return False
+        seen.add(id)
+        n = self.nodes[id]
+        if n.kind == PREMISE and n.enabled and pred(n):
+            return True
+        return any(all(self.is_in(a) for a in j.ins) and all(not self.is_in(b) for b in j.outs)
+                   and any(self.touches(a, pred, seen) for a in j.ins)
+                   for j in self.justifications_for(id))
+
     def why(self, id: str, depth: int = 0, max_depth: int = 8) -> dict:
         """IN 이면 지지 사슬을, OUT 이면 왜 안 서는지를 나무로 돌려준다."""
         n = self.nodes[id]

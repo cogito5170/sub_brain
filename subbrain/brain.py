@@ -76,6 +76,8 @@ class AuxBrain:
     def operator(self, name: str, pre=None, add=None, delete=None, cost: float = 1.0,
                  kind: str = "tool", doc: str = "") -> str:
         r = self.bb.resolve
+        if kind == "tool":
+            self.bb.require_external = True
         self.planner.register(Operator(name, [r(x) for x in pre or []], [r(x) for x in add or []],
                                        [r(x) for x in delete or []], cost, kind, doc))
         return name
@@ -262,6 +264,10 @@ class AuxBrain:
                                 "why": f"목표가 약한 가정({t.nodes[a].meta.get('confidence')})에 기대고 있다 -- "
                                        "TOOLS 로 시험(use)하거나 observe 로 바꿔라"})
             ops.append({"op": "ACCEPT_CONDITIONAL", "by": "llm", "why": "시험할 길이 없으면 조건부로 받아들이고 그 조건을 말하라"})
+        elif k == "UNVERIFIED":
+            ops.append({"op": "TEST", "by": "llm", "target": imp.detail.get("self_reported") or imp.nodes,
+                        "why": "답이 네가 적은 사실에만 기대고 도구 관측이 하나도 없다 -- 그 사실들 가운데 지금 상태에 "
+                               "관한 것을 TOOLS 로 확인(use)하고, 그 관측을 because 에 넣어 다시 세워라"})
         elif k == "UNSUPPORTED_CLAIM":
             ops.append({"op": "SUPPORT", "by": "llm", "target": imp.nodes[0],
                         "why": "근거(because) 없이 말해졌다 -- 근거를 대거나 retract 하라"})

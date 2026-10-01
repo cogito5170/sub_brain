@@ -11,6 +11,7 @@ LLM 이 "생각 -> 생각 -> 생각" 으로 맴도는 대신, 바깥에서 막�
     MISSING_PREMISE    X 를 세울 정당화는 있는데 그 전제가 빠졌다
     UNSUPPORTED_CLAIM  근거 없이 말해진 주장
     WEAK_SUPPORT       목표는 섰는데 약한 가정에 기대고 있다
+    UNVERIFIED         목표는 섰는데 근거가 전부 LLM 이 적은 사실이다(도구가 있는데 안 썼다)
     NO_PLAN            연산자 목록으로 빠진 것을 세울 길이 없다
 """
 from __future__ import annotations
@@ -21,7 +22,7 @@ from .tms import IN, UNDET, DERIVED, CONTRADICTION
 from .verifier import verify
 
 PRIORITY = {"CONFLICT": 100, "LOOP": 90, "RECHECK": 80, "REPEATED_ACTION": 75, "STALL": 85,
-            "MISSING_PREMISE": 60, "UNKNOWN": 60, "NO_PLAN": 50, "WEAK_SUPPORT": 45,
+            "MISSING_PREMISE": 60, "UNKNOWN": 60, "NO_PLAN": 50, "WEAK_SUPPORT": 45, "UNVERIFIED": 45,
             "UNSUPPORTED_CLAIM": 40}
 
 
@@ -135,7 +136,11 @@ def detect(bb, planner=None, repeat_limit: int = 2, stall: int = 0, stall_limit:
         elif g.status == "conditional":
             weak = []
             for r in g.requires:
-                weak += [a for a in verify(bb, r).get("weak", []) if a not in weak]
+                v = verify(bb, r)
+                weak += [a for a in v.get("weak", []) if a not in weak]
+                if v["verdict"] == "SELF_REPORTED":
+                    found.append(Impasse("UNVERIFIED", f"UNVERIFIED:{g.id}:{r}", [r], g.id,
+                                         detail={"self_reported": v["self_reported"]}))
             if weak:
                 found.append(Impasse("WEAK_SUPPORT", f"WEAK:{g.id}", weak, g.id, detail={
                     "assumptions": [{"id": a, "text": t.nodes[a].text,

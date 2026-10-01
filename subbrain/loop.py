@@ -50,11 +50,29 @@ def anthropic_api(model: str, max_tokens: int = 2000) -> LLM:
     return call
 
 
+def fact_tool(name: str, fn: Callable[..., str]) -> Callable:
+    """평범한 함수 fn(**args) -> str 를 보조-뇌 도구로 감싼다. 결과는 관측(fact) 하나가 된다."""
+    count = {"n": 0}
+
+    def tool(brain, op):
+        args = op.get("args") or {}
+        try:
+            out = str(fn(**args))
+        except Exception as e:
+            out = f"ERROR {type(e).__name__}: {e}"
+        count["n"] += 1
+        shown = ", ".join(f"{k}={v}" for k, v in args.items())
+        return [{"op": "fact", "id": f"obs_{name}_{count['n']}", "text": f"{name}({shown}) -> {out}",
+                 "source": "tool"}]
+    return tool
+
+
 def run(brain, llm: LLM, tools: dict[str, Callable] | None = None, max_steps: int = 20,
-        task: str | None = None, on_step: Callable[[dict], None] | None = None) -> dict:
+        task: str | None = None, on_step: Callable[[dict], None] | None = None,
+        max_llm_calls: int | None = None) -> dict:
     tools = tools or {}
     trace = []
-    first = True
+    calls = 0
     for step in range(max_steps):
         d = brain.next()
         rec = {"step": step, "status": d["status"], "op": d.get("op"),
@@ -73,18 +91,25 @@ def run(brain, llm: LLM, tools: dict[str, Callable] | None = None, max_steps: in
                 d["call_llm"] = op["by"] == "llm"
                 rec["fallback"] = op["op"]
         if d["call_llm"]:
-            msg = d["brief"]
-            if first and task:
-                msg = f"TASK: {task}\n\n{msg}"
-            first = False
+            if max_llm_calls is not None and calls >= max_llm_calls:
+                rec["handoff"] = {"op": "BUDGET", "by": "user", "why": f"LLM 호출 상한 {max_llm_calls}"}
+                trace.append(rec)
+                break
+            # 과제 원문은 매 턴 준다 -- 규칙이 칠판에 다 옮겨졌다고 가정하지 않는다
+            msg = (f"TASK: {task}\n\n" if task else "") + d["brief"]
+            if rec.get("fallback"):
+                msg += f"\nNOW {op['op']}({op.get('target', '')}) -- {op.get('why', '')}"
+            calls += 1
             text = llm(SYSTEM, msg)
             ops = parse(text)
+            for o in ops:                    # LLM 이 낸 것은 LLM 이 낸 것이다 -- "source":"tool" 사칭을 지운다
+                o["source"] = "llm"
             rec["llm_ops"] = len(ops)
             if not ops:
                 brain.act("llm_no_ops", {"op": op["op"]}, ok=False, result=text[:200])
         elif op["by"] == "tool" and op["op"] in tools:
             ops = tools[op["op"]](brain, op) or []
-            brain.act(op["op"], {k: op[k] for k in ("target", "candidates") if k in op},
+            brain.act(op["op"], {k: op[k] for k in ("target", "candidates", "args") if k in op},
                       ok=bool(ops), result=f"{len(ops)} ops")
         else:
             rec["handoff"] = op
@@ -96,4 +121,5 @@ def run(brain, llm: LLM, tools: dict[str, Callable] | None = None, max_steps: in
         trace.append(rec)
         if on_step:
             on_step(rec)
-    return {"trace": trace, "stats": dict(brain.stats), "final": trace[-1]["status"] if trace else None}
+    return {"trace": trace, "stats": dict(brain.stats), "llm_calls": calls,
+            "final": trace[-1]["status"] if trace else None}

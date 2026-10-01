@@ -67,7 +67,7 @@ def apply_one(brain, op: dict) -> dict:
                               informant=op.get("source", "rule"))}
     if kind == "observe":
         return {"id": bb.observe(_get(op, "node", "ref", "id", "text"), bool(op.get("value", True)),
-                                 source=op.get("source", "tool"))}
+                                 source=op.get("source", "llm"))}
     if kind == "retract":
         return {"id": bb.retract(_get(op, "node", "ref", "id", "text"), op.get("reason", ""))}
     if kind == "conflict":
