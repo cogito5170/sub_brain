@@ -4,3 +4,4 @@ __pycache__/
 build/
 .subbrain/
 bench/results/*.tmp
+bench/results_*.log

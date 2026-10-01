@@ -24,6 +24,10 @@ def boot(xs, n=4000, seed=0):
 
 def load(path):
     rows = [json.loads(l) for l in Path(path).read_text(encoding="utf-8").splitlines() if l.strip()]
+    from .tasks import by_id                 # 채점기를 고쳐도 다시 돌릴 필요가 없게 저장된 답을 다시 채점한다
+    for r in rows:
+        r["correct_at_run"] = r["correct"]
+        r["correct"] = by_id(r["task"]).check(r["answer"])
     head = Path(path).with_suffix(".overhead.json")
     over = json.loads(head.read_text())["in"] - 15 if head.exists() else 0     # 15 ~ 우리 쪽 빈 프롬프트
     return rows, over

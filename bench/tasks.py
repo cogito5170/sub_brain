@@ -10,6 +10,7 @@ B  diagnose   직렬 설비의 고장 부품 찾기. 어제 보고서가 진짜 
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import dataclass, field
 
 SYL = "가나다라마바사아자차카타파하고노도로모보소오조초코토포호구누두루무부수우주추쿠투푸후"
@@ -31,13 +32,20 @@ class Task:
     tools: dict                      # name -> (doc, fn(arg)->str)
     meta: dict = field(default_factory=dict)
 
+    @staticmethod
+    def _forms(x: str) -> list[str]:
+        """'밸브V4' 는 'V4' 로 줄여 써도 같은 답이다(실측: ReAct 정답 둘이 이것 때문에 오답 처리됐다)."""
+        m = re.search(r"[A-Z]\d+$", x)
+        return [x, m.group()] if m else [x]
+
     def check(self, ans: str | None) -> bool:
         if not ans:
             return False
         a = ans.replace(" ", "")
-        if self.answer.replace(" ", "") not in a:
+        if not any(re.search(re.escape(f) + r"(?!\d)", a) for f in self._forms(self.answer)):
             return False
-        return not any(d.replace(" ", "") in a for d in self.distractors if d != self.answer)
+        return not any(re.search(re.escape(f) + r"(?!\d)", a)
+                       for d in self.distractors if d != self.answer for f in self._forms(d))
 
 
 def _first(kw):
@@ -137,6 +145,10 @@ def diagnose(seed: int) -> Task:
     return Task(f"B{seed}", "diagnose", q, comps[faulty], comps,
                 {"measure": ("measure(point): 부품 이름을 넣으면 그 부품 출구의 현재 유량(정상/낮음)을 잰다", measure)},
                 {"n": n, "faulty_pos": faulty, "decoy": comps[decoy]})
+
+
+def by_id(tid: str) -> Task:
+    return (multihop if tid[0] == "A" else diagnose)(int(tid[1:]))
 
 
 def suite(n_per: int = 12, start: int = 0) -> list[Task]:

@@ -65,3 +65,15 @@ class BenchWiringTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CheckerTest(unittest.TestCase):
+    def test_short_code_counts_and_other_codes_do_not(self):
+        from bench.tasks import diagnose
+        t = diagnose(107)
+        code = t.answer[-2:]
+        self.assertTrue(t.check(code))
+        self.assertTrue(t.check(t.answer + "가 고장"))
+        other = [d for d in t.distractors if d != t.answer][0]
+        self.assertFalse(t.check(f"{code} 또는 {other[-2:]}"))
+        self.assertFalse(t.check(other))
