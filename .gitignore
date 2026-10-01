@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+.subbrain/
+bench/results/*.tmp
+bench/results_*.log

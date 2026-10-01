@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "subbrain"
+version = "0.1.0"
+description = "LLM 옆에 붙는 보조-뇌: Blackboard + TMS + SOAR impasse + STRIPS + Verifier + Memory"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+anthropic = ["anthropic"]
+
+[project.scripts]
+subbrain = "subbrain.__main__:main"
+
+[tool.setuptools]
+packages = ["subbrain"]
